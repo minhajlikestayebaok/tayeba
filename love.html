@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>TAYEBA</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    font-family: system-ui, sans-serif;
+    cursor: crosshair;
+    touch-action: none;
+    -webkit-tap-highlight-color: transparent;
+    background: #0B1636;
+    color: #F2EDF5;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background:
+      radial-gradient(circle at 22% 28%, rgba(32, 35, 68, 0.85) 0%, transparent 55%),
+      radial-gradient(circle at 78% 72%, rgba(42, 13, 28, 0.72) 0%, transparent 55%),
+      radial-gradient(circle at 50% 50%, rgba(11, 22, 54, 0.95) 0%, rgba(11, 22, 54, 0.6) 60%, rgba(2, 5, 12, 1) 100%);
+    background-size: 200% 200%, 200% 200%, 100% 100%;
+    background-position: 0% 0%, 100% 100%, 50% 50%;
+    animation: bgDrift 24s ease-in-out infinite;
+    will-change: background-position;
+  }
+  @keyframes bgDrift {
+    0%   { background-position: 0% 0%, 100% 100%, 50% 50%; }
+    25%  { background-position: 30% 20%, 70% 80%, 50% 50%; }
+    50%  { background-position: 80% 55%, 20% 45%, 50% 50%; }
+    75%  { background-position: 55% 90%, 45% 10%, 50% 50%; }
+    100% { background-position: 0% 0%, 100% 100%, 50% 50%; }
+  }
+
+  body::after {
+    content: '';
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(circle at 50% 48%, rgba(181, 47, 72, 0.22) 0%, transparent 42%);
+    pointer-events: none;
+    animation: glowPulse 9s ease-in-out infinite;
+  }
+  @keyframes glowPulse {
+    0%, 100% { opacity: 0.85; }
+    50%      { opacity: 1; }
+  }
+
+  #c {
+    display: block; width: 100%; height: 100%;
+    position: fixed; inset: 0; z-index: 1;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    body::before, body::after { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+// ============================================================
+// CONFIG
+// ============================================================
+const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const NAME = 'TAYEBA';
+
+const C_NAVY     = '#0B1636';
+const C_INDIGO   = '#202344';
+const C_CRIMSON  = '#B52F48';
+const C_ROSE     = '#FF6375';
+const C_IVORY    = '#F2EDF5';
+
+// ============================================================
+// PHRASES
+// ============================================================
+const PHRASES = [
+  "I love you", "मैं तुमसे प्यार करता हूँ", "Te amo", "Je t'aime",
+  "Ich liebe dich", "ನಾನು ನಿನ್ನನ್ನು ಪ್ರೀತಿಸುತ್ತೇನೆ", "Eu te amo", "Я тебя люблю", "愛してる",
+  "사랑해", "我爱你", "أحبك", "אני אוהב אותך", "Σ' αγαπώ",
+  "Seni seviyorum", "دوستت دارم", "میں تم سے پیار کرتا ہوں", "நான் உன்னை காதலிக்கிறேன்", "నేను నిన్ను ప్రేమిస్తున్నాను",
+  "ਮੈਂ ਤੈਨੂੰ ਪਿਆਰ ਕਰਦਾ ਹਾਂ", "હું તને પ્રેમ કરું છું", "माझं तुझ्यावर प्रेम आहे", "ഞാൻ നിന്നെ സ്നേഹിക്കുന്നു", "म तिमीलाई माया गर्छु",
+  "ମୁଁ ତୁମକୁ ଭଲ ପାଏ", "ฉันรักคุณ", "Anh yêu em", "Aku cinta kamu", "Saya cinta awak",
+  "Mahal kita", "Nakupenda", "Ngiyakuthanda", "Mo ní ìfẹ́ rẹ", "איך ליבע דיך",
+  "Jag älskar dig", "Jeg elsker deg", "Jeg elsker dig", "Rakastan sinua", "Kocham cię",
+  "Miluji tě", "Szeretlek", "Te iubesc", "Ik hou van je", "Я тебе кохаю",
+  "Обичам те", "Volim te", "Волим те", "Aš tave myliu", "Es tevi mīlu",
+  "Ma armastan sind", "Ég elska þig", "Is brea liom tu", "Rwy'n dy garu di", "Tha gaol agam ort",
+  "Maite zaitut", "T'estimo", "Ámote", "Mi amas vin", "Aloha au ia oe",
+  "Kei te aroha au ki a koe", "Ndagukunda", "Waan ku jeclahay", "Ez te hez dikim", "মই তোমাক ভাল পাওঁ",
+  "हम अहाँ सँ प्रेम करैत छी", "Mən səni sevirəm", "Мен сені жақсы көремін", "Men seni sevaman", "Би чамд хайртай",
+  "مان تو سان پيار ڪريان ٿو", "अहं त्वां प्रणयामि", "Те сакам", "بہ چھے مَحَبَت چھے", "Ek het jou lief",
+  "Kea u rata", "Ndiyakuthanda", "हम तोहरा से प्यार करीले"
+];
+
+function fontFor(text) {
+  if (/[\u0980-\u09FF]/.test(text)) return '"Noto Sans Bengali", sans-serif';
+  if (/[\u0900-\u097F]/.test(text)) return '"Noto Sans Devanagari", sans-serif';
+  if (/[\u0B80-\u0BFF]/.test(text)) return '"Noto Sans Tamil", sans-serif';
+  if (/[\u0C00-\u0C7F]/.test(text)) return '"Noto Sans Telugu", sans-serif';
+  if (/[\u0C80-\u0CFF]/.test(text)) return '"Noto Sans Kannada", sans-serif';
+  if (/[\u0A00-\u0A7F]/.test(text)) return '"Noto Sans Gurmukhi", sans-serif';
+  if (/[\u0A80-\u0AFF]/.test(text)) return '"Noto Sans Gujarati", sans-serif';
+  if (/[\u0B00-\u0B7F]/.test(text)) return '"Noto Sans Oriya", "Noto Sans Odia", sans-serif';
+  if (/[\u0D00-\u0D7F]/.test(text)) return '"Noto Sans Malayalam", sans-serif';
+  if (/[\u0E00-\u0E7F]/.test(text)) return '"Noto Sans Thai", sans-serif';
+  if (/[\u0590-\u05FF]/.test(text)) return '"Noto Sans Hebrew", sans-serif';
+  if (/[\u0600-\u06FF\u0750-\u077F\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) return '"Noto Sans Arabic", sans-serif';
+  if (/[\u4E00-\u9FFF\u3040-\u30FF\uAC00-\uD7AF]/.test(text)) return '"Noto Sans CJK JP", "Noto Sans CJK KR", "Noto Sans CJK SC", sans-serif';
+  if (/[\u0370-\u03FF\u0400-\u04FF]/.test(text)) return '"Noto Sans", sans-serif';
+  return '"Noto Sans", system-ui, sans-serif';
+}
+
+const ALL_FAMILIES = [
+  'Noto Sans', 'Noto Sans Bengali', 'Noto Sans Devanagari', 'Noto Sans CJK JP',
+  'Noto Sans CJK KR', 'Noto Sans CJK SC', 'Noto Sans Arabic', 'Noto Sans Hebrew',
+  'Noto Sans Thai', 'Noto Sans Tamil', 'Noto Sans Telugu', 'Noto Sans Kannada',
+  'Noto Sans Gurmukhi', 'Noto Sans Gujarati', 'Noto Sans Malayalam',
+  'Noto Sans Oriya', 'Noto Sans Odia'
+];
+
+// ============================================================
+// CANVAS
+// ============================================================
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d', { alpha: true });
+let W, H, DPR;
+
+function resize() {
+  DPR = Math.min(window.devicePixelRatio || 1, 2);
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * DPR;
+  canvas.height = H * DPR;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+
+function visualLen(s) {
+  let n = 0;
+  for (const ch of s) {
+    const cp = ch.codePointAt(0);
+    n += cp > 0x0900 ? 2 : 1;
+  }
+  return n;
+}
+
+// ============================================================
+// SPRITE BUILDER
+// ============================================================
+function makeSprite(text, size, color, opts = {}) {
+  const { blur = 0, glow = null, glowBlur = 0, weight = 700 } = opts;
+
+  const clean = text.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '').trim();
+  const family = fontFor(clean);
+  const fontStr = `${weight} ${size}px ${family}`;
+
+  const m = document.createElement('canvas').getContext('2d');
+  m.font = fontStr;
+  const metrics = m.measureText(clean);
+
+  const left  = Math.abs(metrics.actualBoundingBoxLeft || 0);
+  const right = Math.abs(metrics.actualBoundingBoxRight || metrics.width || 0);
+  const asc   = Math.abs(metrics.actualBoundingBoxAscent || size * 0.9);
+  const desc  = Math.abs(metrics.actualBoundingBoxDescent || size * 0.3);
+
+  const textW = Math.max(left + right, metrics.width || 0);
+  const textH = asc + desc;
+
+  const padX = Math.max(64, Math.ceil(glowBlur * 2.5 + blur * 3));
+  const padY = Math.max(64, Math.ceil(glowBlur * 2.5 + blur * 3));
+
+  const w = Math.ceil(textW) + padX * 2;
+  const h = Math.ceil(textH) + padY * 2;
+
+  const off = document.createElement('canvas');
+  off.width = w * DPR;
+  off.height = h * DPR;
+  const octx = off.getContext('2d');
+  octx.scale(DPR, DPR);
+  octx.font = fontStr;
+  octx.textBaseline = 'alphabetic';
+  octx.textAlign = 'left';
+
+  if (blur > 0) octx.filter = `blur(${blur}px)`;
+
+  const drawX = padX + left;
+  const drawY = padY + asc;
+
+  if (glow) {
+    octx.shadowColor = glow;
+    octx.shadowBlur = glowBlur;
+  }
+  octx.fillStyle = color;
+  octx.fillText(clean, drawX, drawY);
+
+  return { canvas: off, w: w, h: h };
+}
+
+// ============================================================
+// HEART GEOMETRY
+// ============================================================
+function heartAt(t, scale, jitterX = 0, jitterY = 0) {
+  const cx = W / 2;
+  const cy = H / 2;
+  const base = Math.min(W, H) * 0.026 * scale;
+  const x = 16 * Math.pow(Math.sin(t), 3);
+  const y = -(13 * Math.cos(t) - 5 * Math.cos(2*t) - 2 * Math.cos(3*t) - Math.cos(4*t));
+  return {
+    x: cx + x * base + jitterX,
+    y: cy + y * base + jitterY
+  };
+}
+
+// ============================================================
+// STATE
+// ============================================================
+let particles = [];
+let bgSprites = [], midSprites = [], fgSprites = [];
+
+// ============================================================
+// REBUILD
+// ============================================================
+function rebuild() {
+  resize();
+
+  const area = W * H;
+  const density = W < 700 ? 6500 : 8000;
+  const count = Math.max(70, Math.min(150, Math.floor(area / density)));
+  const baseSize = Math.max(9, Math.min(14, Math.min(W, H) / 65));
+
+  const sorted = [...PHRASES].sort((a, b) => visualLen(a) - visualLen(b));
+
+  const nBg  = Math.round(sorted.length * 0.40);
+  const nMid = Math.round(sorted.length * 0.50);
+  const nFg  = sorted.length - nBg - nMid;
+
+  const bgPhrases  = sorted.slice(0, nBg);
+  const midPhrases = sorted.slice(nBg, nBg + nMid);
+  const fgPhrases  = sorted.slice(nBg + nMid);
+
+  bgSprites = bgPhrases.map(p =>
+    makeSprite(p, baseSize * 0.80, C_IVORY, { blur: 1.4, weight: 500 })
+  );
+  midSprites = midPhrases.map(p =>
+    makeSprite(p, baseSize, C_IVORY, { glow: 'rgba(242, 237, 245, 0.35)', glowBlur: 8 })
+  );
+  fgSprites = fgPhrases.map((p, i) =>
+    makeSprite(p, baseSize * 1.05, i % 2 === 0 ? C_ROSE : C_CRIMSON, {
+      glow: i % 2 === 0 ? 'rgba(255, 99, 117, 0.75)' : 'rgba(181, 47, 72, 0.75)',
+      glowBlur: 16
+    })
+  );
+
+  const nInner   = Math.round(count * 0.30);
+  const nMidRing = Math.round(count * 0.40);
+  const nOuter   = count - nInner - nMidRing;
+
+  const ringPlan = [
+    { n: nInner,   scale: 0.55, pool: bgSprites,  layer: 'bg'  },
+    { n: nMidRing, scale: 0.80, pool: midSprites, layer: 'mid' },
+    { n: nOuter,   scale: 1.00, pool: fgSprites,  layer: 'fg'  }
+  ];
+
+  particles = [];
+
+  for (const ring of ringPlan) {
+    const pool = ring.pool.length > 0 ? ring.pool : midSprites;
+
+    for (let k = 0; k < ring.n; k++) {
+      const t = (k / ring.n) * Math.PI * 2;
+      const jx = (Math.random() - 0.5) * 18;
+      const jy = (Math.random() - 0.5) * 18;
+      const target = heartAt(t, ring.scale, jx, jy);
+      const s = pool[k % pool.length];
+
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.max(W, H) * 0.75;
+
+      const driftSpeed = ring.layer === 'bg'  ? 0.30
+                       : ring.layer === 'mid' ? 0.18
+                       : 0.45;
+      const driftRadius = ring.layer === 'bg'  ? 3.5
+                        : ring.layer === 'mid' ? 5.5
+                        : 7;
+
+      particles.push({
+        sprite: s,
+        layer: ring.layer,
+        x: W / 2 + Math.cos(angle) * dist,
+        y: H / 2 + Math.sin(angle) * dist,
+        vx: 0, vy: 0,
+        tx: target.x, ty: target.y,
+        baseX: target.x, baseY: target.y,
+        delay: Math.random() * 0.8,
+        driftPhase: Math.random() * Math.PI * 2,
+        driftSpeed: driftSpeed,
+        driftRadius: driftRadius
+      });
+    }
+  }
+
+  initNameMotion();
+}
+
+// ============================================================
+// TAYEBA MOTION — weighted, slow, no rotation
+// ============================================================
+const nameState = {
+  x: 0, y: 0, vx: 0, vy: 0,
+  tx: 0, ty: 0,
+  scale: 1, targetScale: 1,
+  state: 'pausing',
+  pauseUntil: 0,
+  safeLeft: 0, safeRight: 0, safeTop: 0, safeBottom: 0,
+  nameSize: 0,
+  nameW: 0, nameH: 0
+};
+
+function measureName() {
+  const size = Math.max(48, Math.min(120, Math.min(W, H) * 0.14));
+  nameState.nameSize = size;
+  ctx.save();
+  ctx.font = `900 ${size}px "Noto Sans", system-ui, sans-serif`;
+  const m = ctx.measureText(NAME);
+  nameState.nameW = m.width;
+  nameState.nameH = size * 1.1;
+  ctx.restore();
+}
+
+function initNameMotion() {
+  measureName();
+
+  const padX = Math.max(40, nameState.nameW * 0.6);
+  const padTop = Math.max(60, nameState.nameH * 0.9);
+  const padBottom = Math.max(100, nameState.nameH * 1.3);
+
+  nameState.safeLeft   = padX;
+  nameState.safeRight  = W - padX;
+  nameState.safeTop    = padTop;
+  nameState.safeBottom = H - padBottom;
+
+  if (nameState.safeLeft >= nameState.safeRight || nameState.safeTop >= nameState.safeBottom) {
+    nameState.safeLeft   = W / 2;
+    nameState.safeRight  = W / 2;
+    nameState.safeTop    = H / 2;
+    nameState.safeBottom = H / 2;
+  }
+
+  nameState.x = W / 2;
+  nameState.y = H / 2;
+  nameState.vx = 0; nameState.vy = 0;
+  nameState.scale = 1;
+  nameState.targetScale = 1;
+  nameState.state = 'pausing';
+  nameState.pauseUntil = performance.now() + 1600;
+  pickNewWaypoint();
+}
+
+function pickNewWaypoint() {
+  if (REDUCED_MOTION) {
+    nameState.tx = W / 2;
+    nameState.ty = H / 2;
+    nameState.targetScale = 1;
+    return;
+  }
+  nameState.tx = nameState.safeLeft + Math.random() * (nameState.safeRight - nameState.safeLeft);
+  nameState.ty = nameState.safeTop  + Math.random() * (nameState.safeBottom - nameState.safeTop);
+
+  // Very subtle scale variation — feels like breathing, not bouncing
+  if (Math.random() < 0.25) {
+    nameState.targetScale = 0.98 + Math.random() * 0.03;
+  } else {
+    nameState.targetScale = 1;
+  }
+}
+
+function updateName(dt, now) {
+  if (REDUCED_MOTION) {
+    nameState.x = W / 2;
+    nameState.y = H / 2;
+    nameState.scale = 1;
+    return;
+  }
+
+  if (nameState.state === 'pausing') {
+    if (now >= nameState.pauseUntil) {
+      pickNewWaypoint();
+      nameState.state = 'moving';
+    }
+  } else {
+    // Softer spring — moves with weight, slower settle
+    const k = 0.008 * dt;
+    const damp = Math.pow(0.92, dt);
+
+    nameState.vx += (nameState.tx - nameState.x) * k;
+    nameState.vy += (nameState.ty - nameState.y) * k;
+    nameState.vx *= damp;
+    nameState.vy *= damp;
+    nameState.x += nameState.vx * dt;
+    nameState.y += nameState.vy * dt;
+
+    nameState.scale += (nameState.targetScale - nameState.scale) * 0.02 * dt;
+
+    const dx = nameState.tx - nameState.x;
+    const dy = nameState.ty - nameState.y;
+    const dist = Math.hypot(dx, dy);
+    const speed = Math.hypot(nameState.vx, nameState.vy);
+
+    if (dist < 5 && speed < 0.4) {
+      nameState.state = 'pausing';
+      nameState.pauseUntil = now + 2200 + Math.random() * 2200; // 2.2–4.4s
+    }
+  }
+}
+
+function drawName(now) {
+  const size = nameState.nameSize;
+
+  ctx.save();
+  ctx.translate(nameState.x, nameState.y);
+  ctx.scale(nameState.scale, nameState.scale);
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.font = `900 ${size}px "Noto Sans", system-ui, sans-serif`;
+
+  // Static gradient — fixed, no shifting
+  const half = nameState.nameW / 2;
+  const grad = ctx.createLinearGradient(-half, 0, half, 0);
+  grad.addColorStop(0,    C_CRIMSON);
+  grad.addColorStop(0.45, C_ROSE);
+  grad.addColorStop(0.7,  '#ff8a99');
+  grad.addColorStop(1,    C_CRIMSON);
+
+  // Soft shadow — one restrained bloom, no harsh neon
+  ctx.shadowColor = 'rgba(181, 47, 72, 0.45)';
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = grad;
+  ctx.fillText(NAME, 0, 0);
+
+  // Crisp pass
+  ctx.shadowBlur = 0;
+  ctx.fillText(NAME, 0, 0);
+
+  ctx.restore();
+}
+
+// ============================================================
+// POINTER — cursor repel (smooth)
+// ============================================================
+const pointer = { x: -9999, y: -9999, active: false };
+
+window.addEventListener('pointermove', e => {
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.active = true;
+});
+window.addEventListener('pointerleave', () => {
+  pointer.active = false;
+  pointer.x = -9999;
+  pointer.y = -9999;
+});
+window.addEventListener('pointerdown', e => {
+  pointer.x = e.clientX;
+  pointer.y = e.clientY;
+  pointer.active = true;
+  explodeAt(e.clientX, e.clientY);
+});
+window.addEventListener('pointerup', () => {
+  // keep pointer active — repel still applies while cursor is over page
+});
+
+function explodeAt(x, y) {
+  for (const p of particles) {
+    const dx = p.x - x;
+    const dy = p.y - y;
+    const d = Math.hypot(dx, dy) || 1;
+    const force = 24 / Math.max(d / 70, 0.4);
+    p.vx += (dx / d) * force;
+    p.vy += (dy / d) * force;
+  }
+}
+
+// ============================================================
+// MAIN LOOP
+// ============================================================
+let lastT = performance.now();
+
+function frame(t) {
+  const dt = Math.min((t - lastT) / 16.67, 3);
+  lastT = t;
+
+  // Fade toward transparent so the CSS background stays visible
+  ctx.globalCompositeOperation = 'destination-out';
+  ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.globalCompositeOperation = 'source-over';
+
+  // --- Particles ---
+  for (const p of particles) {
+    if (p.delay > 0) {
+      p.delay -= 0.008 * dt;
+      continue;
+    }
+
+    // Spring toward base target
+    const dx = p.tx - p.x;
+    const dy = p.ty - p.y;
+    p.vx += dx * 0.012 * dt;
+    p.vy += dy * 0.012 * dt;
+
+    // Smooth cursor repel with falloff
+    if (pointer.active) {
+      const mdx = p.x - pointer.x;
+      const mdy = p.y - pointer.y;
+      const d2 = mdx * mdx + mdy * mdy;
+      const R = 24000; // ~155px radius
+      if (d2 < R) {
+        const d = Math.sqrt(d2) || 1;
+        const falloff = 1 - d2 / R;       // 0 at edge, 1 at centre
+        const force = falloff * 3.2;
+        p.vx += (mdx / d) * force * dt;
+        p.vy += (mdy / d) * force * dt;
+      }
+    }
+
+    // Independent drift
+    if (!REDUCED_MOTION) {
+      p.driftPhase += p.driftSpeed * 0.01 * dt;
+    }
+    const driftX = Math.cos(p.driftPhase) * p.driftRadius;
+    const driftY = Math.sin(p.driftPhase * 0.8) * p.driftRadius;
+
+    p.vx *= Math.pow(0.92, dt);
+    p.vy *= Math.pow(0.92, dt);
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+
+    const s = p.sprite;
+    ctx.drawImage(
+      s.canvas,
+      p.x + driftX - s.w / 2,
+      p.y + driftY - s.h / 2,
+      s.w, s.h
+    );
+  }
+
+  // --- TAYEBA ---
+  updateName(dt, t);
+  drawName(t);
+
+  requestAnimationFrame(frame);
+}
+
+// ============================================================
+// BOOT
+// ============================================================
+async function preloadFonts() {
+  const loads = ALL_FAMILIES.map(f =>
+    document.fonts.load(`700 16px "${f}"`).catch(() => {})
+  );
+  await Promise.all(loads);
+  await document.fonts.ready;
+}
+
+preloadFonts().then(() => {
+  requestAnimationFrame(() => {
+    rebuild();
+
+    window.addEventListener('resize', () => {
+      clearTimeout(window._rebuildT);
+      window._rebuildT = setTimeout(rebuild, 200);
+    });
+    window.addEventListener('orientationchange', () => {
+      clearTimeout(window._rebuildT);
+      window._rebuildT = setTimeout(rebuild, 300);
+    });
+
+    requestAnimationFrame(t => { lastT = t; frame(t); });
+  });
+});
+</script>
+</body>
+</html>
