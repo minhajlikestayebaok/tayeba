@@ -61,9 +61,6 @@
 <body>
 <canvas id="c"></canvas>
 <script>
-// ============================================================
-// CONFIG
-// ============================================================
 const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 const NAME = 'TAYEBA';
@@ -74,9 +71,6 @@ const C_CRIMSON  = '#B52F48';
 const C_ROSE     = '#FF6375';
 const C_IVORY    = '#F2EDF5';
 
-// ============================================================
-// PHRASES
-// ============================================================
 const PHRASES = [
   "I love you", "मैं तुमसे प्यार करता हूँ", "Te amo", "Je t'aime",
   "Ich liebe dich", "ನಾನು ನಿನ್ನನ್ನು ಪ್ರೀತಿಸುತ್ತೇನೆ", "Eu te amo", "Я тебя люблю", "愛してる",
@@ -122,9 +116,6 @@ const ALL_FAMILIES = [
   'Noto Sans Oriya', 'Noto Sans Odia'
 ];
 
-// ============================================================
-// CANVAS
-// ============================================================
 const canvas = document.getElementById('c');
 const ctx = canvas.getContext('2d', { alpha: true });
 let W, H, DPR;
@@ -149,9 +140,6 @@ function visualLen(s) {
   return n;
 }
 
-// ============================================================
-// SPRITE BUILDER
-// ============================================================
 function makeSprite(text, size, color, opts = {}) {
   const { blur = 0, glow = null, glowBlur = 0, weight = 700 } = opts;
 
@@ -201,9 +189,6 @@ function makeSprite(text, size, color, opts = {}) {
   return { canvas: off, w: w, h: h };
 }
 
-// ============================================================
-// HEART GEOMETRY
-// ============================================================
 function heartAt(t, scale, jitterX = 0, jitterY = 0) {
   const cx = W / 2;
   const cy = H / 2;
@@ -216,16 +201,12 @@ function heartAt(t, scale, jitterX = 0, jitterY = 0) {
   };
 }
 
-// ============================================================
-// STATE
-// ============================================================
 let particles = [];
 let bgSprites = [], midSprites = [], fgSprites = [];
+let revealStartedAt = 0;
+let isInitialReveal = true;
 
-// ============================================================
-// REBUILD
-// ============================================================
-function rebuild() {
+function rebuild(skipDelays = false) {
   resize();
 
   const area = W * H;
@@ -256,14 +237,16 @@ function rebuild() {
     })
   );
 
+  // ===== REVEAL ORDER: OUTER FIRST, THEN MID, THEN INNER =====
+  // This makes the heart draw itself like a stroke being added.
   const nInner   = Math.round(count * 0.30);
   const nMidRing = Math.round(count * 0.40);
   const nOuter   = count - nInner - nMidRing;
 
   const ringPlan = [
-    { n: nInner,   scale: 0.55, pool: bgSprites,  layer: 'bg'  },
-    { n: nMidRing, scale: 0.80, pool: midSprites, layer: 'mid' },
-    { n: nOuter,   scale: 1.00, pool: fgSprites,  layer: 'fg'  }
+    { n: nOuter,   scale: 1.00, pool: fgSprites,  layer: 'fg',  order: 0 }, // outer ring — drawn first
+    { n: nMidRing, scale: 0.80, pool: midSprites, layer: 'mid', order: 1 }, // mid ring
+    { n: nInner,   scale: 0.55, pool: bgSprites,  layer: 'bg',  order: 2 }  // inner core
   ];
 
   particles = [];
@@ -278,8 +261,9 @@ function rebuild() {
       const target = heartAt(t, ring.scale, jx, jy);
       const s = pool[k % pool.length];
 
-      const angle = Math.random() * Math.PI * 2;
-      const dist = Math.max(W, H) * 0.75;
+      // Start position: along the same angle as target, but further out
+      const dist = Math.max(W, H) * (0.55 + Math.random() * 0.25);
+      const startAngle = Math.atan2(target.y - H/2, target.x - W/2) + (Math.random() - 0.5) * 0.6;
 
       const driftSpeed = ring.layer === 'bg'  ? 0.30
                        : ring.layer === 'mid' ? 0.18
@@ -288,15 +272,23 @@ function rebuild() {
                         : ring.layer === 'mid' ? 5.5
                         : 7;
 
+      // Sequential delay — this is what makes it draw itself.
+      // Outer ring reveals first (0-3s), then mid (2-5s), then inner (4-7s).
+      // Within each ring, particles reveal clockwise around the heart.
+      const posInRing = k / ring.n;
+      const delay = skipDelays
+        ? 0
+        : ring.order * 2.0 + posInRing * 3.0 + Math.random() * 0.25;
+
       particles.push({
         sprite: s,
         layer: ring.layer,
-        x: W / 2 + Math.cos(angle) * dist,
-        y: H / 2 + Math.sin(angle) * dist,
+        x: W / 2 + Math.cos(startAngle) * dist,
+        y: H / 2 + Math.sin(startAngle) * dist,
         vx: 0, vy: 0,
         tx: target.x, ty: target.y,
         baseX: target.x, baseY: target.y,
-        delay: Math.random() * 0.8,
+        delay: delay,
         driftPhase: Math.random() * Math.PI * 2,
         driftSpeed: driftSpeed,
         driftRadius: driftRadius
@@ -307,9 +299,6 @@ function rebuild() {
   initNameMotion();
 }
 
-// ============================================================
-// TAYEBA MOTION — weighted, slow, no rotation
-// ============================================================
 const nameState = {
   x: 0, y: 0, vx: 0, vy: 0,
   tx: 0, ty: 0,
@@ -371,7 +360,6 @@ function pickNewWaypoint() {
   nameState.tx = nameState.safeLeft + Math.random() * (nameState.safeRight - nameState.safeLeft);
   nameState.ty = nameState.safeTop  + Math.random() * (nameState.safeBottom - nameState.safeTop);
 
-  // Very subtle scale variation — feels like breathing, not bouncing
   if (Math.random() < 0.25) {
     nameState.targetScale = 0.98 + Math.random() * 0.03;
   } else {
@@ -393,7 +381,6 @@ function updateName(dt, now) {
       nameState.state = 'moving';
     }
   } else {
-    // Softer spring — moves with weight, slower settle
     const k = 0.008 * dt;
     const damp = Math.pow(0.92, dt);
 
@@ -413,7 +400,7 @@ function updateName(dt, now) {
 
     if (dist < 5 && speed < 0.4) {
       nameState.state = 'pausing';
-      nameState.pauseUntil = now + 2200 + Math.random() * 2200; // 2.2–4.4s
+      nameState.pauseUntil = now + 2200 + Math.random() * 2200;
     }
   }
 }
@@ -428,7 +415,6 @@ function drawName(now) {
   ctx.textBaseline = 'middle';
   ctx.font = `900 ${size}px "Noto Sans", system-ui, sans-serif`;
 
-  // Static gradient — fixed, no shifting
   const half = nameState.nameW / 2;
   const grad = ctx.createLinearGradient(-half, 0, half, 0);
   grad.addColorStop(0,    C_CRIMSON);
@@ -436,22 +422,17 @@ function drawName(now) {
   grad.addColorStop(0.7,  '#ff8a99');
   grad.addColorStop(1,    C_CRIMSON);
 
-  // Soft shadow — one restrained bloom, no harsh neon
   ctx.shadowColor = 'rgba(181, 47, 72, 0.45)';
   ctx.shadowBlur = 18;
   ctx.fillStyle = grad;
   ctx.fillText(NAME, 0, 0);
 
-  // Crisp pass
   ctx.shadowBlur = 0;
   ctx.fillText(NAME, 0, 0);
 
   ctx.restore();
 }
 
-// ============================================================
-// POINTER — cursor repel (smooth)
-// ============================================================
 const pointer = { x: -9999, y: -9999, active: false };
 
 window.addEventListener('pointermove', e => {
@@ -470,9 +451,6 @@ window.addEventListener('pointerdown', e => {
   pointer.active = true;
   explodeAt(e.clientX, e.clientY);
 });
-window.addEventListener('pointerup', () => {
-  // keep pointer active — repel still applies while cursor is over page
-});
 
 function explodeAt(x, y) {
   for (const p of particles) {
@@ -485,50 +463,43 @@ function explodeAt(x, y) {
   }
 }
 
-// ============================================================
-// MAIN LOOP
-// ============================================================
 let lastT = performance.now();
 
 function frame(t) {
   const dt = Math.min((t - lastT) / 16.67, 3);
   lastT = t;
 
-  // Fade toward transparent so the CSS background stays visible
   ctx.globalCompositeOperation = 'destination-out';
   ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
   ctx.fillRect(0, 0, W, H);
   ctx.globalCompositeOperation = 'source-over';
 
-  // --- Particles ---
   for (const p of particles) {
     if (p.delay > 0) {
-      p.delay -= 0.008 * dt;
-      continue;
+      // delay is in seconds now — decrement by dt/60 frames
+      p.delay -= dt * 0.0167;
+      if (p.delay > 0) continue;
     }
 
-    // Spring toward base target
     const dx = p.tx - p.x;
     const dy = p.ty - p.y;
     p.vx += dx * 0.012 * dt;
     p.vy += dy * 0.012 * dt;
 
-    // Smooth cursor repel with falloff
     if (pointer.active) {
       const mdx = p.x - pointer.x;
       const mdy = p.y - pointer.y;
       const d2 = mdx * mdx + mdy * mdy;
-      const R = 24000; // ~155px radius
+      const R = 24000;
       if (d2 < R) {
         const d = Math.sqrt(d2) || 1;
-        const falloff = 1 - d2 / R;       // 0 at edge, 1 at centre
+        const falloff = 1 - d2 / R;
         const force = falloff * 3.2;
         p.vx += (mdx / d) * force * dt;
         p.vy += (mdy / d) * force * dt;
       }
     }
 
-    // Independent drift
     if (!REDUCED_MOTION) {
       p.driftPhase += p.driftSpeed * 0.01 * dt;
     }
@@ -549,16 +520,12 @@ function frame(t) {
     );
   }
 
-  // --- TAYEBA ---
   updateName(dt, t);
   drawName(t);
 
   requestAnimationFrame(frame);
 }
 
-// ============================================================
-// BOOT
-// ============================================================
 async function preloadFonts() {
   const loads = ALL_FAMILIES.map(f =>
     document.fonts.load(`700 16px "${f}"`).catch(() => {})
@@ -569,15 +536,19 @@ async function preloadFonts() {
 
 preloadFonts().then(() => {
   requestAnimationFrame(() => {
-    rebuild();
+    rebuild(false); // first build uses delays — the heart draws itself
 
     window.addEventListener('resize', () => {
       clearTimeout(window._rebuildT);
-      window._rebuildT = setTimeout(rebuild, 200);
+      window._rebuildT = setTimeout(() => {
+        rebuild(true); // subsequent rebuilds skip delays
+      }, 200);
     });
     window.addEventListener('orientationchange', () => {
       clearTimeout(window._rebuildT);
-      window._rebuildT = setTimeout(rebuild, 300);
+      window._rebuildT = setTimeout(() => {
+        rebuild(true);
+      }, 300);
     });
 
     requestAnimationFrame(t => { lastT = t; frame(t); });
